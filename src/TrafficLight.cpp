@@ -1,10 +1,11 @@
 #include <iostream>
 #include <random>
+#include <chrono>
 #include "TrafficLight.h"
 
 /* Implementation of class "MessageQueue" */
 
-/* 
+
 template <typename T>
 T MessageQueue<T>::receive()
 {
@@ -18,12 +19,15 @@ void MessageQueue<T>::send(T &&msg)
 {
     // FP.4a : The method send should use the mechanisms std::lock_guard<std::mutex> 
     // as well as _condition.notify_one() to add a new message to the queue and afterwards send a notification.
+    std::lock_guard<std::mutex> lock(_mtx);
+    _queue.emplace_back(std::move(msg));
+    _cond.notify_one();
+
 }
-*/
+
 
 /* Implementation of class "TrafficLight" */
 
-/* 
 TrafficLight::TrafficLight()
 {
     _currentPhase = TrafficLightPhase::red;
@@ -44,6 +48,7 @@ TrafficLightPhase TrafficLight::getCurrentPhase()
 void TrafficLight::simulate()
 {
     // FP.2b : Finally, the private method „cycleThroughPhases“ should be started in a thread when the public method „simulate“ is called. To do this, use the thread queue in the base class. 
+    threads.emplace_back(std::thread(&TrafficLight::cycleThroughPhases, this));
 }
 
 // virtual function which is executed in a thread
@@ -53,6 +58,40 @@ void TrafficLight::cycleThroughPhases()
     // and toggles the current phase of the traffic light between red and green and sends an update method 
     // to the message queue using move semantics. The cycle duration should be a random value between 4 and 6 seconds. 
     // Also, the while-loop should use std::this_thread::sleep_for to wait 1ms between two cycles. 
+
+    //from https://stackoverflow.com/questions/22387586/measuring-execution-time-of-a-function-in-c
+    //from https://stackoverflow.com/questions/7560114/random-number-c-in-some-range/7560151
+
+    std::random_device rd;     // oobtain a random number from HW
+    std::mt19937 rng(rd());    // seed the generator
+    std::uniform_real_distribution<double> uni(4.0 , 6.0); 
+        
+    double duration = uni(rng);
+    auto ts = std::chrono::high_resolution_clock::now();
+
+    while(true)
+    {
+        // sleep at every iteration to reduce CPU usage
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+
+        // compute time difference to stop watch
+        if (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - ts).count()>= duration)
+        {
+            if (_currentPhase == TrafficLightPhase::red)
+            {
+                _currentPhase = TrafficLightPhase::green;
+            }
+            else
+            {
+                _currentPhase = TrafficLightPhase::red;
+            }
+            
+            
+            _messages.send(std::move(_currentPhase));
+
+            ts = std::chrono::high_resolution_clock::now();
+            duration = uni(rng);
+        }
+    }
 }
 
-*/
